@@ -13,9 +13,9 @@ import math
 config = {
     "project_name": "distil-logits",
     "dataset": {
-        "name": "/mnt/sda1/Yikun/distillKitPlus/CybersecurityDatasets/",
+        "name": "/mnt/sda1/Yikun/distillKitPlus/CybersecurityDatasets2/",
         "split": "train",
-        #"num_samples": 100, # You can pass a number here to limit the number of samples to use.
+        "num_samples": 50000, # You can pass a number here to limit the number of samples to use.
         "seed": 42
     },
     "models": {
@@ -23,15 +23,15 @@ config = {
         "student": "/mnt/sda1/Yikun/distillKitPlus/Qwen3-0.6B/"
     },
     "tokenizer": {
-        "max_length": 2048,
+        "max_length": 1024,
         "chat_template": "{% for message in messages %}{% if loop.first and messages[0]['role'] != 'system' %}{{ '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n' }}{% endif %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
     },
     "training": {
-        "output_dir": "./results_final",
-        "num_train_epochs": 6,
+        "output_dir": "./results_en",
+        "num_train_epochs": 5,
         "per_device_train_batch_size": 1,
         "gradient_accumulation_steps": 8,
-        "save_steps": 1000,
+        "save_steps": 3000,
         "logging_steps": 1,
         "learning_rate": 1e-5,
         "weight_decay": 0.05,
@@ -42,11 +42,17 @@ config = {
         "bf16": True,
         "remove_unused_columns": False,
         "max_grad_norm": 30,
+        "eval_strategy": "steps",  # 按步骤评估
+        "eval_steps": 3000,  # 每500步评估一次
+        "per_device_eval_batch_size": 1,  # 评估时的batch size
+        "load_best_model_at_end": True,  # 训练结束时加载最佳模型
+        "metric_for_best_model": "eval_loss",  # 以评估损失作为最佳模型的指标
+        "greater_is_better": False  # 损失越小越好
         #"report_to": "wandb"
     },
     "distillation": {
         "temperature": 2.0,
-        "alpha": 0.5,
+        "alpha": 0.65,
         "dwa_temperature": 2.0,  # 新增：DWA温度参数
         "hidden_loss_scale": 0.03, # 新增：隐藏层损失缩放系数（MSE）
         "top_k": 4  # 新增：适配层映射的top-k层数
@@ -117,7 +123,7 @@ def prepare_dataset(example):
 print("Preprocessing and tokenizing dataset...")
 original_columns = dataset.column_names
 dataset = dataset.map(prepare_dataset, remove_columns=original_columns, num_proc=8)
-dataset = dataset.train_test_split(test_size=0.1, seed=config["dataset"]["seed"])
+dataset = dataset.train_test_split(test_size=0.2, seed=config["dataset"]["seed"])
 
 print("Dataset preparation complete. Loading models...")
 
@@ -152,10 +158,10 @@ class FreezeCallback(TrainerCallback):
         # state.epoch是从0开始的浮点数（如3.0表示第4个epoch开始）
         current_epoch = int(state.epoch)  # 转换为整数（0→第1个epoch，4→第5个epoch）
         
-        if current_epoch < 4:  # 前4个epoch（0-3对应第1-4个epoch）：全参数训练
+        if current_epoch < 1:  # 前4个epoch（0-3对应第1-4个epoch）：全参数训练
             #不冻结任何参数
             if int(state.epoch) == 0:  # 只在首次epoch开始时打印一次
-                print("前4个epoch：所有参数可训练（不冻结）")
+                print("前1个epoch：所有参数可训练（不冻结）")
         else:  # 第5个epoch及以后：启用spectrum冻结
             self.set_spectrum_freeze()
             print(f"第{current_epoch+1}个epoch：启用spectrum参数冻结逻辑")
@@ -302,7 +308,7 @@ class ComplexTrainer(SFTTrainer):
         avg_hidden_loss = hidden_loss / max(1, matched)
 
         # --------------------------
-        # 2. Logits蒸馏损失计算（复用原有逻辑）
+        # 2. Logits蒸馏损失计算
         # --------------------------
         student_logits, teacher_logits = pad_logits(
             student_outputs.logits.to(device),
@@ -334,24 +340,25 @@ class ComplexTrainer(SFTTrainer):
             exp_hidden = math.exp(r_hidden / self.T)
             sum_exp = exp_kd + exp_hidden
             w_kd = exp_kd / sum_exp
+            w_hidden = exp_hidden / sum_exp
         # --------------------------
         # 4. 融合所有损失
         # --------------------------
         # 蒸馏损失 = 隐藏层损失 * hidden_weight + logits损失 * (1 - hidden_weight)
         # kd_loss = (config["distillation"]["hidden_weight"] * avg_hidden_loss +
         #           (1 - config["distillation"]["hidden_weight"]) * logits_loss)
-
-
-        # 获取当前训练轮次
-        current_epoch = float(self.state.epoch or 0.0)
-        if current_epoch < 2.0:
-            w_kd_real = 1.0
-        else:
-            w_kd_real = max(w_kd, 0.85) # 如果w_kd小于0.85，则将其设置为0.85
-        
-        total_loss = w_kd_real * logits_loss + (1 - w_kd_real) * (avg_hidden_loss * config["distillation"]["hidden_loss_scale"])
+        #w_kd = max(w_kd, 0.6)
+        total_loss = w_kd * logits_loss + (1-w_kd) * (avg_hidden_loss * config["distillation"]["hidden_loss_scale"])
         # 总损失 = 蒸馏损失 * alpha + 原始损失 * (1 - alpha)
         total_loss = config["distillation"]["alpha"] * total_loss + (1 - config["distillation"]["alpha"]) * original_loss
+
+        if (self.state.global_step) % 100 == 0:
+            self.log({
+                "train/original_loss": original_loss.detach().cpu().item(),
+                "train/logits_loss": logits_loss.detach().cpu().item(),
+                "train/hidden_loss": avg_hidden_loss.detach().cpu().item(),
+            })
+
 
         return total_loss
 
@@ -382,6 +389,15 @@ if "spectrum" in config and "layers_to_unfreeze" in config["spectrum"]:
 else:
     print("Spectrum configuration not found. All layers will remain trainable.")
 
+# 自定义回调函数，用于在评估后记录更多信息
+class EvalCallback(TrainerCallback):
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        if metrics is not None:
+            print(f"\nEvaluation results: {metrics}")
+
+
+# 添加回调函数
+trainer.add_callback(EvalCallback())
 
 # Add the teacher model to the trainer
 trainer.teacher_model = teacher_model
