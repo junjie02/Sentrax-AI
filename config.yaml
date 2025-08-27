@@ -1,0 +1,45 @@
+project_name: "distil-logits"
+dataset:
+  name: "/mnt/sda1/Yikun/distillKitPlus/CybersecurityDatasets2/"
+  split: "train"
+  num_samples: 100
+  test_size: 0.2
+  seed: 42
+models:
+  teacher: "/mnt/sda1/Yikun/distillKitPlus/Qwen3-4B-Instruct-2507/"
+  student: "/mnt/sda1/Yikun/distillKitPlus/Qwen3-0.6B/"
+tokenizer:
+  max_length: 1024
+  chat_template: "{% for message in messages %}{% if loop.first and messages[0]['role'] != 'system' %}{{ '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n' }}{% endif %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+training:
+  output_dir: "./results_test"
+  num_train_epochs: 5
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  save_steps: 3000
+  logging_steps: 1
+  learning_rate: 0.00001
+  weight_decay: 0.05
+  warmup_ratio: 0.05
+  lr_scheduler_type: "cosine"
+  resume_from_checkpoint: null  
+  fp16: false
+  bf16: true
+  remove_unused_columns: false
+  max_grad_norm: 30
+  eval_strategy: "steps"
+  eval_steps: 3000
+  per_device_eval_batch_size: 1
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+distillation:
+  temperature: 2.0
+  alpha: 0.65
+  dwa_temperature: 2.0
+  hidden_loss_scale: 0.03
+  top_k: 4
+model_config:
+  use_flash_attention: true
+spectrum:
+  layers_to_unfreeze: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_50percent.yaml"
