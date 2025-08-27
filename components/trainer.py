@@ -6,6 +6,8 @@ import yaml
 import os
 import math
 
+from .similarity import compute_nn_r2
+
 #加载配置文件
 CONFIG_PATH = "././config.yaml"
 # 读取YAML文件并加载配置
@@ -115,21 +117,11 @@ class ComplexTrainer(SFTTrainer):
         # --------------------------
         # 3. 动态权重平均（DWA）
         # --------------------------
-        self.loss_history["kd_loss"].append(logits_loss.item())
-        self.loss_history["kd_loss"] = self.loss_history["kd_loss"][-5:]  # 保持最近20个记录
-        self.loss_history["hidden_loss"].append(avg_hidden_loss.item())
-        self.loss_history["hidden_loss"] = self.loss_history["hidden_loss"][-5:]
+        student_last_hidden = student_outputs.hidden_states[-1]  # 取最后一层 hidden
+        student_hidden_logits_similarity = compute_nn_r2(student_last_hidden, student_logits)
+        #print(student_hidden_logits_similarity)
 
-        w_kd, w_hidden = 1.0, 1.0  # 默认权重
-        if len(self.loss_history["kd_loss"]) >= 2:
-            r_kd = self.loss_history["kd_loss"][-1] / (self.loss_history["kd_loss"][-2] + 1e-8)
-            r_hidden = self.loss_history["hidden_loss"][-1] / (self.loss_history["hidden_loss"][-2] + 1e-8)
-
-            exp_kd = math.exp(r_kd / self.T)
-            exp_hidden = math.exp(r_hidden / self.T)
-            sum_exp = exp_kd + exp_hidden
-            w_kd = exp_kd / sum_exp
-            w_hidden = exp_hidden / sum_exp
+        w_kd = student_hidden_logits_similarity
         # --------------------------
         # 4. 融合所有损失
         # --------------------------
