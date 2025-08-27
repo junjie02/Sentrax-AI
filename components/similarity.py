@@ -1,75 +1,78 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
-from sklearn.decomposition import TruncatedSVD
 
-# ===============
-# 距离相关性 dCor
-# ===============
-def distance_correlation(x, y):
-    x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
-    if x.shape[0] != y.shape[0]:
-        raise ValueError("x 和 y 的样本数必须一致")
+class SmallMLP(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dim=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
 
-    n = x.shape[0]
-    a = squareform(pdist(x, 'euclidean'))
-    b = squareform(pdist(y, 'euclidean'))
+    def forward(self, x):
+        return self.net(x)
 
-    A = a - a.mean(axis=0)[None, :] - a.mean(axis=1)[:, None] + a.mean()
-    B = b - b.mean(axis=0)[None, :] - b.mean(axis=1)[:, None] + b.mean()
+def compute_nn_r2(hidden, logits, sample_tokens=256, sample_vocab=2000, hidden_mlp=128, epochs=20, lr=1e-3, device='cuda'):
+    """
+    用小 MLP 回归 logits -> R² 作为相关性指标
 
-    dcov = np.sqrt((A * B).sum() / (n * n))
-    dvar_x = np.sqrt((A * A).sum() / (n * n))
-    dvar_y = np.sqrt((B * B).sum() / (n * n))
+    参数:
+        hidden: torch.Tensor, [1, seq_len, hidden_dim]
+        logits: torch.Tensor, [1, seq_len, vocab_size]
+        sample_tokens: 随机采样 token 数
+        sample_vocab: 随机采样 vocab 数
+        hidden_mlp: MLP 隐藏层大小
+        epochs: 训练轮数
+        lr: 学习率
+        device: 'cpu' or 'cuda'
 
-    return 0 if dvar_x * dvar_y == 0 else dcov / np.sqrt(dvar_x * dvar_y)
+    返回:
+        r2: float, 回归 R² 值
+    """
+    seq_len, hidden_dim = hidden.shape[1], hidden.shape[2]
+    vocab_size = logits.shape[2]
 
-# ===============
-# 主函数（只计算 dCor, 可选快速模式）
-# ===============
-def compute_dcor(hidden, logits, n_components=128, sample_tokens=256, sample_vocab=2000):
-    # 去掉 batch 维度
-    if hidden.ndim == 3:
-        hidden = hidden.squeeze(0)
-    if logits.ndim == 3:
-        logits = logits.squeeze(0)
+    # 随机采样
+    token_idx = torch.randperm(seq_len)[:sample_tokens]
+    vocab_idx = torch.randperm(vocab_size)[:sample_vocab]
 
-    # 转 numpy
-    if hasattr(hidden, 'detach'):
-        hidden = hidden.detach().cpu().numpy()
-    if hasattr(logits, 'detach'):
-        logits = logits.detach().cpu().numpy()
+    hidden_sample = hidden[0, token_idx].detach().to(device)       # [sample_tokens, hidden_dim]
+    logits_sample = logits[0, token_idx][:, vocab_idx].detach().to(device)  # [sample_tokens, sample_vocab]
 
-    # step0: 随机采样 token
-    if hidden.shape[0] > sample_tokens:
-        idx = np.random.choice(hidden.shape[0], size=sample_tokens, replace=False)
-        hidden = hidden[idx]
-        logits = logits[idx]
+    # 建立模型
+    mlp = SmallMLP(hidden_dim, sample_vocab, hidden_mlp).to(device)
+    optimizer = optim.Adam(mlp.parameters(), lr=lr)
+    criterion = nn.MSELoss()
 
-    # step1: 随机采样 vocab 维度
-    if logits.shape[1] > sample_vocab:
-        vocab_idx = np.random.choice(logits.shape[1], size=sample_vocab, replace=False)
-        logits = logits[:, vocab_idx]
+    # 训练 MLP
+    mlp.train()
+    for _ in range(epochs):
+        optimizer.zero_grad()
+        pred = mlp(hidden_sample)
+        loss = criterion(pred, logits_sample)
+        loss.backward()
+        optimizer.step()
 
-    # step2: logits 降维 (vocab_size -> n_components)
-    svd_logits = TruncatedSVD(n_components=min(n_components, logits.shape[1]-1), random_state=42)
-    logits_reduced = svd_logits.fit_transform(logits)  # (seq_len, n_components)
+    # 计算 R²
+    mlp.eval()
+    with torch.no_grad():
+        pred = mlp(hidden_sample)
+        ss_res = ((logits_sample - pred) ** 2).sum()
+        ss_tot = ((logits_sample - logits_sample.mean(0)) ** 2).sum()
+        r2 = 1 - (ss_res / (ss_tot + 1e-8)).item()
 
-    # step3: hidden 也降维到相同维度
-    svd_hidden = TruncatedSVD(n_components=min(n_components, hidden.shape[1]-1), random_state=42)
-    hidden_reduced = svd_hidden.fit_transform(hidden)  # (seq_len, n_components)
+    return r2
 
-    # 只计算 Distance Correlation
-    dcor = distance_correlation(hidden_reduced, logits_reduced)
-    return dcor
-
-# ===============
+# ======================
 # 使用示例
-# ===============
+# ======================
 if __name__ == "__main__":
-    hidden = torch.randn(1, 1024, 1024)
-    logits = torch.randn(1, 1024, 151936)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    hidden = torch.randn(1, 1024, 1024, requires_grad=True).to(device)
+    logits = torch.randn(1, 1024, 151936, requires_grad=True).to(device)
 
-    dcor_value = compute_dcor(hidden, logits, n_components=128, sample_tokens=256, sample_vocab=2000)
-    print("Approx Distance Correlation:", dcor_value)
+    r2_score = compute_nn_r2(hidden, logits, sample_tokens=256, sample_vocab=2000, hidden_mlp=128, epochs=20, device=device)
+    print("NN Regression R²:", r2_score)
