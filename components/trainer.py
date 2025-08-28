@@ -6,7 +6,7 @@ import yaml
 import os
 import math
 
-from .similarity import compute_nn_r2
+from .similarity import compute_dcor
 
 #加载配置文件
 CONFIG_PATH = "././config.yaml"
@@ -28,10 +28,6 @@ class ComplexTrainer(SFTTrainer):
         self.adaptation_layer = kwargs.pop("adaptation_layer")  # 显式接收适配层
         self.T = kwargs.pop("dwa_temperature", config["distillation"]["dwa_temperature"])  # DWA 温度参数
         #self.max_seq_length = kwargs.get('max_seq_length', 1024)
-        self.loss_history = {
-            "kd_loss": [],
-            "hidden_loss": []
-        }
         super(ComplexTrainer, self).__init__(*args, **kwargs)
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -118,10 +114,11 @@ class ComplexTrainer(SFTTrainer):
         # 3. 动态权重平均（DWA）
         # --------------------------
         student_last_hidden = student_outputs.hidden_states[-1]  # 取最后一层 hidden
-        student_hidden_logits_similarity = compute_nn_r2(student_last_hidden, student_logits)
-        #print(student_hidden_logits_similarity)
+        teacher_last_hidden = teacher_outputs.hidden_states[-1]
+        student_hidden_logits_similarity = (compute_dcor(student_last_hidden, student_logits) - 0.92)*10
+        teacher_hidden_logits_similarity =  compute_dcor(teacher_last_hidden, teacher_logits)
 
-        w_kd = student_hidden_logits_similarity
+        w_kd = student_hidden_logits_similarity * teacher_hidden_logits_similarity
         # --------------------------
         # 4. 融合所有损失
         # --------------------------
@@ -138,6 +135,7 @@ class ComplexTrainer(SFTTrainer):
                 "train/original_loss": original_loss.detach().cpu().item(),
                 "train/logits_loss": logits_loss.detach().cpu().item(),
                 "train/hidden_loss": avg_hidden_loss.detach().cpu().item(),
+                "w_kd": w_kd,
             })
 
 
