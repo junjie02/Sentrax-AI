@@ -118,7 +118,7 @@ class ComplexTrainer(SFTTrainer):
         student_hidden_logits_similarity = (compute_dcor(student_last_hidden, student_logits) - 0.92)*10
         teacher_hidden_logits_similarity =  compute_dcor(teacher_last_hidden, teacher_logits)
 
-        w_kd = student_hidden_logits_similarity * teacher_hidden_logits_similarity
+        w_hidden = student_hidden_logits_similarity * teacher_hidden_logits_similarity
         # --------------------------
         # 4. 融合所有损失
         # --------------------------
@@ -126,7 +126,7 @@ class ComplexTrainer(SFTTrainer):
         # kd_loss = (config["distillation"]["hidden_weight"] * avg_hidden_loss +
         #           (1 - config["distillation"]["hidden_weight"]) * logits_loss)
         #w_kd = max(w_kd, 0.6)
-        total_loss = w_kd * logits_loss + (1-w_kd) * (avg_hidden_loss * config["distillation"]["hidden_loss_scale"])
+        total_loss = (1-w_hidden) * logits_loss + w_hidden * (avg_hidden_loss * config["distillation"]["hidden_loss_scale"])
         # 总损失 = 蒸馏损失 * alpha + 原始损失 * (1 - alpha)
         total_loss = config["distillation"]["alpha"] * total_loss + (1 - config["distillation"]["alpha"]) * original_loss
 
