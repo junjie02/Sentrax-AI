@@ -2,9 +2,9 @@ project_name: "distil-logits"
 dataset:
   name: "/mnt/sda1/Yikun/distillKitPlus/CybersecurityDatasets2/"
   split: "train"
-  num_samples: 100
-  test_size: 0.2
+  num_samples: 10
   seed: 42
+  test_size: 0.2
 models:
   teacher: "/mnt/sda1/Yikun/distillKitPlus/Qwen3-4B-Instruct-2507/"
   student: "/mnt/sda1/Yikun/distillKitPlus/Qwen3-0.6B/"
@@ -35,11 +35,14 @@ training:
   greater_is_better: false
 distillation:
   temperature: 2.0
-  alpha: 0.65
+  alpha: 0.60
   dwa_temperature: 2.0
-  hidden_loss_scale: 0.03
+  hidden_loss_scale: 0.1
   top_k: 4
 model_config:
   use_flash_attention: true
 spectrum:
-  layers_to_unfreeze: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_50percent.yaml"
+  layers_to_unfreeze1: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_20percent.yaml"
+  layers_to_unfreeze2: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_40percent.yaml"
+  layers_to_unfreeze3: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_60percent.yaml"
+  layers_to_unfreeze4: "/mnt/sda1/Yikun/distillKitPlus/spectrum/snr_results_-mnt-sda1-Yikun-distillKitPlus-Qwen3-0.6B-_unfrozenparameters_80percent.yaml"

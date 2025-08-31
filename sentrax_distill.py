@@ -85,10 +85,13 @@ trainer = ComplexTrainer(
 )
 
 # 添加动态冻结回调（仅当spectrum配置存在时）
-if "spectrum" in config and "layers_to_unfreeze" in config["spectrum"]:
+if "spectrum" in config and "layers_to_unfreeze1" in config["spectrum"]:
     freeze_callback = FreezeCallback(
         student_model=student_model,
-        unfrozen_layers_file=config["spectrum"]["layers_to_unfreeze"]
+        unfrozen_layers_file1=config["spectrum"]["layers_to_unfreeze1"],
+        unfrozen_layers_file2=config["spectrum"]["layers_to_unfreeze2"],
+        unfrozen_layers_file3=config["spectrum"]["layers_to_unfreeze3"],
+        unfrozen_layers_file4=config["spectrum"]["layers_to_unfreeze4"]
     )
     trainer.add_callback(freeze_callback)
 else:
