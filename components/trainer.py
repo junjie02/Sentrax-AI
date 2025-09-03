@@ -6,7 +6,7 @@ import yaml
 import os
 import math
 
-from .similarity import compute_nn_r2
+from .weight import hidden_weight, teacher_confidence, hidden_complexity
 
 #加载配置文件
 CONFIG_PATH = "././config.yaml"
@@ -26,12 +26,7 @@ class ComplexTrainer(SFTTrainer):
         self.remove_unused_columns = kwargs.pop('remove_unused_columns', None)
         self.teacher_model = kwargs.pop("teacher_model")  # 显式接收教师模型
         self.adaptation_layer = kwargs.pop("adaptation_layer")  # 显式接收适配层
-        self.T = kwargs.pop("dwa_temperature", config["distillation"]["dwa_temperature"])  # DWA 温度参数
         #self.max_seq_length = kwargs.get('max_seq_length', 1024)
-        self.loss_history = {
-            "kd_loss": [],
-            "hidden_loss": []
-        }
         super(ComplexTrainer, self).__init__(*args, **kwargs)
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -117,11 +112,21 @@ class ComplexTrainer(SFTTrainer):
         # --------------------------
         # 3. 动态权重平均（DWA）
         # --------------------------
-        student_last_hidden = student_outputs.hidden_states[-1]  # 取最后一层 hidden
-        student_hidden_logits_similarity = compute_nn_r2(student_last_hidden, student_logits)
-        #print(student_hidden_logits_similarity)
 
-        w_hidden = student_hidden_logits_similarity
+        #计算teacher logots 置信度
+        teacher_conf = teacher_confidence(teacher_logits)
+
+        #计算学生隐藏层复杂度
+        #选取最后4层隐藏层
+        selected_student_hiddens = [student_outputs.hidden_states[i] for i in range(-4, 0)]
+        hidden_complexity_score = hidden_complexity(selected_student_hiddens)
+
+        #计算动态权重
+        total_epochs = self.args.num_train_epochs
+        current_epoch = self.state.epoch  # 从Trainer状态获取当前epoch
+        t_norm = current_epoch / total_epochs if total_epochs > 0 else 0.0
+        w_hidden, d = hidden_weight(teacher_conf, hidden_complexity_score, t_norm)
+
         #print(w_kd)
         # --------------------------
         # 4. 融合所有损失
@@ -139,7 +144,10 @@ class ComplexTrainer(SFTTrainer):
                 "train/original_loss": original_loss.detach().cpu().item(),
                 "train/logits_loss": logits_loss.detach().cpu().item(),
                 "train/hidden_loss": avg_hidden_loss.detach().cpu().item(),
-                "train/w_hidden": w_hidden
+                "teacher_confidence:": teacher_conf,
+                "d:": d,
+                "student_hidden_complex:": hidden_complexity_score,
+                "train/w_hidden": w_hidden,
             })
 
 

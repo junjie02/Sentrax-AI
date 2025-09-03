@@ -60,7 +60,7 @@ class FreezeCallback(TrainerCallback):
         if current_epoch < 1:  # 前4个epoch（0-3对应第1-4个epoch）：全参数训练
             #不冻结任何参数
             if int(state.epoch) == 0:  # 只在首次epoch开始时打印一次
-                print("启用spectrum冻结参数训练")
+                print("第1个epoch，不冻结参数")
         elif current_epoch == 1:  # 第2个epoch：启用20%解冻
             self.set_spectrum_freeze1()
             print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻20%层")
@@ -72,4 +72,4 @@ class FreezeCallback(TrainerCallback):
             print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻60%层")
         elif current_epoch == 4:  # 第5个epoch：启用80%解冻
             self.set_spectrum_freeze4()
-            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻60%层")
+            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻80%层")
