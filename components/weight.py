@@ -65,7 +65,7 @@ def hidden_complexity(hiddens, attn_maps=None, answer_mask=None, use_path=True, 
     mask_norm = mask.sum().clamp_min(1.0)
 
     # 平均token表征（答案token）
-    hs = [(h * mask[:, None]).sum(dim=0) / mask_norm for h in hiddens]  # [d]
+    hs = [(h * mask.unsqueeze(-1)).sum(dim=0) / mask_norm for h in hiddens]  # [d]
     hs = torch.stack(hs, dim=0)  # [L_sel, d]
 
     comps, weights, wsum = [], [], 0.0
