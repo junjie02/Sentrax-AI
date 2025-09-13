@@ -57,19 +57,15 @@ class FreezeCallback(TrainerCallback):
         # state.epoch是从0开始的浮点数（如3.0表示第4个epoch开始）
         current_epoch = int(state.epoch)  # 转换为整数（0→第1个epoch，4→第5个epoch）
         
-        if current_epoch < 1:  # 前4个epoch（0-3对应第1-4个epoch）：全参数训练
-            #不冻结任何参数
-            if int(state.epoch) == 0:  # 只在首次epoch开始时打印一次
-                print("第1个epoch，不冻结参数")
-        elif current_epoch == 1:  # 第2个epoch：启用20%解冻
-            self.set_spectrum_freeze1()
-            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻20%层")
-        elif current_epoch == 2:  # 第3个epoch：启用40%解冻
-            self.set_spectrum_freeze2()
-            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻40%层")
-        elif current_epoch == 3:  # 第4个epoch：启用60%解冻
-            self.set_spectrum_freeze3()
-            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻60%层")
-        elif current_epoch == 4:  # 第5个epoch：启用80%解冻
+        elif current_epoch == 0:  # 第1个epoch：启用20%解冻
             self.set_spectrum_freeze4()
             print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻80%层")
+        elif current_epoch == 1:  # 第2个epoch：启用40%解冻
+            self.set_spectrum_freeze3()
+            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻60%层")
+        elif current_epoch == 2:  # 第3个epoch：启用60%解冻
+            self.set_spectrum_freeze2()
+            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻40%层")
+        elif current_epoch == 3:  # 第4个epoch：启用80%解冻
+            self.set_spectrum_freeze1()
+            print(f"第{current_epoch+1}个epoch：启用spectrum冻结参数训练，解冻20%层")
