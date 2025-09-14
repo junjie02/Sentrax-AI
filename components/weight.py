@@ -100,7 +100,7 @@ def hidden_complexity(hiddens, attn_maps=None, answer_mask=None, use_path=True, 
 # ==============
 def hidden_weight(d_teacher, c_hidden, t_norm,
                   alpha=0.5, mu=0.55, sigma=0.25,
-                  gamma=0.4, lamb=3.0, wmin=0.1, wmax=0.9):
+                  gamma=0.4, lamb=3.0, wmin=0.4, wmax=0.9):
     """
     综合难度 + 钟形函数 + 训练阶段门控
     参数:
@@ -119,8 +119,8 @@ def hidden_weight(d_teacher, c_hidden, t_norm,
     """
     d = d_teacher * c_hidden 
     bell = math.exp(- (d - mu) ** 2 / (2 * sigma ** 2))
-    stage = gamma + (1 - gamma) * math.exp(-lamb * t_norm)
-    w = stage * bell
+    #stage = gamma + (1 - gamma) * math.exp(-lamb * t_norm)
+    w = bell
     w = max(min(w, wmax), wmin)
     #print(f"d = {d}")
     return w, d
