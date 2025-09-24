@@ -1,0 +1,51 @@
+{
+  "accuracy": 0.8898488120950324,
+  "precision": 0.8282828282828283,
+  "recall": 1.0,
+  "f1_score": 0.9060773480662984,
+  "specificity": 0.7649769585253456,
+  "confusion_matrix": [
+    [
+      166,
+      51
+    ],
+    [
+      0,
+      246
+    ]
+  ],
+  "true_positives": 246,
+  "true_negatives": 166,
+  "false_positives": 51,
+  "false_negatives": 0,
+  "classification_report": {
+    "Normal": {
+      "precision": 1.0,
+      "recall": 0.7649769585253456,
+      "f1-score": 0.8668407310704961,
+      "support": 217.0
+    },
+    "Anomaly": {
+      "precision": 0.8282828282828283,
+      "recall": 1.0,
+      "f1-score": 0.9060773480662984,
+      "support": 246.0
+    },
+    "accuracy": 0.8898488120950324,
+    "macro avg": {
+      "precision": 0.9141414141414141,
+      "recall": 0.8824884792626728,
+      "f1-score": 0.8864590395683972,
+      "support": 463.0
+    },
+    "weighted avg": {
+      "precision": 0.9087636625433602,
+      "recall": 0.8898488120950324,
+      "f1-score": 0.8876878321093025,
+      "support": 463.0
+    }
+  },
+  "test_size": 463,
+  "anomaly_count": 246,
+  "normal_count": 217
+}

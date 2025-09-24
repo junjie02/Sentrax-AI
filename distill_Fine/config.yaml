@@ -1,0 +1,35 @@
+project_name: "distil-logits"
+dataset:
+  name: "./sec_analysis_dataset"
+  split: "train"
+  #num_samples: 10000
+  seed: 42
+  #test_size: 0.1
+models:
+  teacher: "./Qwen3-4B-Instruct-2507"
+  student: "./Qwen3-0.6B-Instruct"
+tokenizer:
+  max_length: 1024
+  chat_template: "{% for message in messages %}{% if loop.first and messages[0]['role'] != 'system' %}{{ '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n' }}{% endif %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+training:
+  output_dir: "./distilled_qwen3_instruct"
+  num_train_epochs: 1
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  save_steps: 1000
+  logging_steps: 1
+  learning_rate: 0.00001
+  weight_decay: 0.05
+  warmup_ratio: 0.05
+  lr_scheduler_type: "cosine"
+  resume_from_checkpoint: null  
+  fp16: false
+  bf16: true
+  remove_unused_columns: false
+  max_grad_norm: 8
+
+distillation:
+  temperature: 2.0
+  alpha: 0.3
+model_config:
+  use_flash_attention: false

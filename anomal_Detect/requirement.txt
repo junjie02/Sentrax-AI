@@ -1,0 +1,14 @@
+# Transformers 用于 Hugging Face 模型
+transformers==4.42.2
+tokenizers==0.14.3
+
+# GPU 加速的 cuML
+cuml==23.12.00
+
+# 数据处理与评估
+scikit-learn==1.3.2
+numpy==1.26.0
+joblib==1.3.2
+
+# 可选：tqdm 用于进度条显示
+tqdm==4.66.1
